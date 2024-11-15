@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Define variables
-ELASTIC_VERSION="8.10.2" # Set the desired Elasticsearch version
+ELASTIC_VERSION="7.10.2" # Set the desired Elasticsearch version
 INSTALL_DIR="/opt/elasticsearch"
 CONFIG_DIR="/etc/elasticsearch"
 DATA_DIR="/data" # Path for Elasticsearch data
 YAML_DIR="./" # Directory where the YAML files are located (same directory as the script)
-SEED_HOSTS=("192.168.1.10" "192.168.1.11" "192.168.1.12") # List of all master-eligible node IPs
+SEED_HOSTS=("10.190.102.53" "10.190.102.54" "10.190.102.55") # List of all master-eligible node IPs
 
 # Check for sufficient arguments
 if [ $# -ne 2 ]; then
@@ -34,7 +34,7 @@ fi
 # Update the package index and install prerequisites
 echo "Updating package index and installing prerequisites..."
 sudo apt-get update -y
-sudo apt-get install -y wget curl apt-transport-https openjdk-17-jdk
+sudo apt-get install -y wget curl apt-transport-https openjdk-11-jdk
 
 # Download and install Elasticsearch
 if [ ! -d "$INSTALL_DIR" ]; then
@@ -77,17 +77,16 @@ sudo bash -c 'cat > /etc/systemd/system/elasticsearch.service << EOF
 [Unit]
 Description=Elasticsearch
 Documentation=https://elastic.co
-Wants=network-online.target
-After=network-online.target
+After=network.target
 
 [Service]
-Type=notify
+User=elasticsearch
+Group=elasticsearch 
 ExecStart=/opt/elasticsearch/bin/elasticsearch
 User=elasticsearch
 Group=elasticsearch
-Restart=on-failure
-LimitNOFILE=65536
-LimitMEMLOCK=infinity
+Restart=always
+ 
 
 [Install]
 WantedBy=multi-user.target
