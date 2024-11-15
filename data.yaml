@@ -1,0 +1,6 @@
+cluster.name: gf-cluster
+node.name: node-2  # Or node-3
+node.master: true
+node.data: true
+network.host: 0.0.0.0
+discovery.seed_hosts: ["192.168.1.10", "192.168.1.11", "192.168.1.12"]
