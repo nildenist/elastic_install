@@ -6,22 +6,25 @@ INSTALL_DIR="/opt/elasticsearch"
 CONFIG_DIR="/etc/elasticsearch"
 DATA_DIR="/data"
 SEED_HOSTS=("10.190.102.53" "10.190.102.54" "10.190.102.55") # List of all master-eligible node IPs
-
+YAML_DIR="./" # Directory where the YAML files are located (same directory as the script)
+ 
 # Check for sufficient arguments
-if [ $# -ne 3 ]; then
-  echo "Usage: $0 <type: master|data> <cluster-name> <node-id>"
-  echo "Example: $0 master my-cluster 1"
+if [ $# -ne 2 ]; then
+  echo "Usage: $0 <type: master|data> <node-id>"
+  echo "Example: $0 master 1"
   exit 1
 fi
 
 ROLE=$1
-CLUSTER_NAME=$2
-NODE_ID=$3
+NODE_ID=$2
+NODE_NAME=""
 
-# Define naming convention
+# Select YAML based on role
 if [ "$ROLE" == "master" ]; then
+  YAML_FILE="master.yaml"
   NODE_NAME="master-$NODE_ID"
 elif [ "$ROLE" == "data" ]; then
+  YAML_FILE="data.yaml"
   NODE_NAME="data-$NODE_ID"
 else
   echo "Invalid type: $ROLE. Use 'master' or 'data'."
@@ -45,49 +48,17 @@ else
 fi
 
 # Configure Elasticsearch
-echo "Configuring Elasticsearch for role: $ROLE, cluster: $CLUSTER_NAME, node name: $NODE_NAME..."
+echo "Configuring Elasticsearch for role: $ROLE, node name: $NODE_NAME..."
+
+# Ensure the YAML file exists
+if [ ! -f "$YAML_DIR/$YAML_FILE" ]; then
+  echo "Configuration file $YAML_FILE not found in $YAML_DIR!"
+  exit 1
+fi
+
+# Copy the relevant YAML configuration
 sudo mkdir -p $CONFIG_DIR
-sudo mkdir -p $DATA_DIR
-
-# Set permissions for /data
-echo "Setting permissions for $DATA_DIR..."
-sudo chown -R root:root $DATA_DIR
-sudo chmod -R 775 $DATA_DIR
-
-# Create the elasticsearch.yml configuration dynamically
-sudo bash -c "cat > $CONFIG_DIR/elasticsearch.yml << EOF
-cluster.name: $CLUSTER_NAME
-node.name: $NODE_NAME
-EOF"
-
-if [ "$ROLE" == "master" ]; then
-  sudo bash -c "cat >> $CONFIG_DIR/elasticsearch.yml << EOF
-node.master: true
-node.data: false
-EOF"
-elif [ "$ROLE" == "data" ]; then
-  sudo bash -c "cat >> $CONFIG_DIR/elasticsearch.yml << EOF
-node.master: true
-node.data: true
-EOF"
-fi
-
-# Common settings for all nodes
-sudo bash -c "cat >> $CONFIG_DIR/elasticsearch.yml << EOF
-network.host: 0.0.0.0
-discovery.seed_hosts: [\"${SEED_HOSTS[*]}\"] # Master-eligible node IPs
-path.data: $DATA_DIR
-EOF"
-
-if [ "$ROLE" == "master" ]; then
-  sudo bash -c "cat >> $CONFIG_DIR/elasticsearch.yml << EOF
-cluster.initial_master_nodes: [\"master-1\", \"master-2\", \"master-3\"] # Predictable master names
-EOF"
-fi
-
-sudo bash -c "cat >> $CONFIG_DIR/elasticsearch.yml << EOF
-path.logs: /var/log/elasticsearch
-EOF"
+sudo cp "$YAML_DIR/$YAML_FILE" "$CONFIG_DIR/elasticsearch.yml"
 
 # Create a systemd service file for Elasticsearch
 echo "Creating systemd service..."
@@ -121,4 +92,4 @@ sudo systemctl start elasticsearch
 echo "Verifying Elasticsearch status..."
 sudo systemctl status elasticsearch --no-pager
 
-echo "Elasticsearch installation and configuration complete for role: $ROLE, cluster: $CLUSTER_NAME, node name: $NODE_NAME, data directory: $DATA_DIR."
+echo "Elasticsearch installation and configuration complete for role: $ROLE, node name: $NODE_NAME."
