@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Define variables
-ELASTIC_VERSION="7.10.2" # Set the desired Elasticsearch version
+ELASTIC_VERSION="8.10.2" # Set the desired Elasticsearch version
 INSTALL_DIR="/opt/elasticsearch"
 CONFIG_DIR="/etc/elasticsearch"
-DATA_DIR="/data"
-SEED_HOSTS=("10.190.102.53" "10.190.102.54" "10.190.102.55") # List of all master-eligible node IPs
+DATA_DIR="/data" # Path for Elasticsearch data
 YAML_DIR="./" # Directory where the YAML files are located (same directory as the script)
- 
+SEED_HOSTS=("192.168.1.10" "192.168.1.11" "192.168.1.12") # List of all master-eligible node IPs
+
 # Check for sufficient arguments
 if [ $# -ne 2 ]; then
   echo "Usage: $0 <type: master|data> <node-id>"
@@ -47,6 +47,17 @@ else
   echo "Elasticsearch is already installed at $INSTALL_DIR."
 fi
 
+# Create a dedicated user and group for Elasticsearch
+echo "Creating 'elasticsearch' user and group..."
+sudo groupadd elasticsearch
+sudo useradd -g elasticsearch -s /bin/bash -M -r elasticsearch
+
+# Ensure proper permissions for installation directory and data directory
+echo "Setting file permissions..."
+sudo chown -R elasticsearch:elasticsearch $INSTALL_DIR
+sudo chown -R elasticsearch:elasticsearch $DATA_DIR
+sudo chown -R elasticsearch:elasticsearch $CONFIG_DIR
+
 # Configure Elasticsearch
 echo "Configuring Elasticsearch for role: $ROLE, node name: $NODE_NAME..."
 
@@ -72,9 +83,9 @@ After=network-online.target
 [Service]
 Type=notify
 ExecStart=/opt/elasticsearch/bin/elasticsearch
+User=elasticsearch
+Group=elasticsearch
 Restart=on-failure
-User=root
-Group=root
 LimitNOFILE=65536
 LimitMEMLOCK=infinity
 
