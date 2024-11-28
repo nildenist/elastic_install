@@ -110,7 +110,7 @@ else
   echo "Elasticsearch is already installed at $INSTALL_DIR."
 fi
 
-# Create a dedicated user and group for Elasticsearch
+# Create a dedicated user and group for Elasticsearch if not exists
 echo "Creating 'elasticsearch' user and group..."
 if ! id -u elasticsearch &>/dev/null; then
   sudo groupadd elasticsearch
@@ -119,13 +119,17 @@ else
   echo "'elasticsearch' user and group already exist."
 fi
 
-# Ensure proper permissions for installation directory and data directory
+# Ensure the required directories exist
+echo "Ensuring required directories exist..."
+sudo mkdir -p "$DATA_DIR" "$CONFIG_DIR" "/var/log/elasticsearch"
+
+# Set permissions for Elasticsearch directories
 echo "Setting file permissions..."
-sudo mkdir -p "$DATA_DIR"
-sudo mkdir -p "$CONFIG_DIR"
 sudo chown -R elasticsearch:elasticsearch "$INSTALL_DIR"
 sudo chown -R elasticsearch:elasticsearch "$DATA_DIR"
 sudo chown -R elasticsearch:elasticsearch "$CONFIG_DIR"
+sudo chown -R elasticsearch:elasticsearch /var/log/elasticsearch
+sudo chmod -R 755 /var/log/elasticsearch
 
 # Configure firewall to allow Elasticsearch ports (9200 and 9300)
 echo "Configuring firewall to allow incoming traffic on ports 9200 and 9300..."
