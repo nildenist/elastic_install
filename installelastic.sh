@@ -45,6 +45,9 @@ node.name: $NODE_NAME
 node.roles: ["master"]
 http.port: 9200
 network.host: 0.0.0.0
+xpack.security.enabled: false
+xpack.security.transport.ssl.enabled: false
+xpack.security.http.ssl.enabled: false
 path.data: /data
 path.logs: /var/log/elasticsearch
 discovery.seed_hosts: [${SEED_HOSTS[*]}]
@@ -59,6 +62,9 @@ elif [ "$ROLE" == "data" ]; then
 node.name: $NODE_NAME
 node.roles: ["data"]
 network.host: 0.0.0.0
+xpack.security.enabled: false
+xpack.security.transport.ssl.enabled: false
+xpack.security.http.ssl.enabled: false
 path.data: /data
 path.logs: /var/log/elasticsearch
 discovery.seed_hosts: [${SEED_HOSTS[*]}]
