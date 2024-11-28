@@ -121,7 +121,7 @@ sudo chown -R elasticsearch:elasticsearch "$INSTALL_DIR"
 sudo chown -R elasticsearch:elasticsearch "$DATA_DIR"
 sudo chown -R elasticsearch:elasticsearch "$CONFIG_DIR"
 
-exit 1
+
 
 # Create a systemd service file for Elasticsearch
 echo "Creating systemd service..."
