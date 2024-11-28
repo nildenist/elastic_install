@@ -108,12 +108,10 @@ discovery.seed_hosts:
 EOF
 )
 
-  
-  # Add seed hosts with proper indentation under discovery.seed_hosts
+   # Add seed hosts with proper indentation under discovery.seed_hosts
   for SEED in "${SEED_HOSTS[@]}"; do
-    FINAL_YAML+=$(printf '  - "%s"\n' "$SEED")
+    FINAL_YAML+=$(printf '\n  - "%s%b"\n' "$SEED")
   done
-
 
 elif [ "$ROLE" == "data" ]; then
   FINAL_YAML=$(cat <<EOF
@@ -130,9 +128,9 @@ discovery.seed_hosts:
 EOF
 )
 
-   # Add seed hosts with proper indentation under discovery.seed_hosts
+  # Add seed hosts with proper indentation under discovery.seed_hosts
   for SEED in "${SEED_HOSTS[@]}"; do
-    FINAL_YAML+=$(printf '  - "%s"\n' "$SEED")
+    FINAL_YAML+=$(printf '\n  - "%s%b"\n' "$SEED")
   done
 
 fi
