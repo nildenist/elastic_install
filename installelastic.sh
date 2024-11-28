@@ -81,15 +81,21 @@ else
   exit 1
 fi
 
-# Proceed with the rest of the Elasticsearch installation steps
-echo "Continuing with Elasticsearch installation..."
+# Check if UFW is installed, and install it if necessary
+echo "Checking if ufw is installed..."
+if ! command -v ufw &> /dev/null; then
+  echo "UFW is not installed. Installing ufw..."
+  sudo apt-get update -y
+  sudo apt-get install -y ufw
+else
+  echo "UFW is already installed."
+fi
 
 # Update the package index and install prerequisites
-echo "Updating package index and installing prerequisites..."
-sudo apt-get update -y
+echo "Installing additional dependencies..."
 sudo apt-get install -y wget curl apt-transport-https openjdk-17-jdk
 
-# Download and install Elasticsearch
+# Install and configure Elasticsearch
 if [ ! -d "$INSTALL_DIR" ]; then
   echo "Downloading and installing Elasticsearch $ELASTIC_VERSION..."
   wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-$ELASTIC_VERSION-linux-x86_64.tar.gz
@@ -121,7 +127,10 @@ sudo chown -R elasticsearch:elasticsearch "$INSTALL_DIR"
 sudo chown -R elasticsearch:elasticsearch "$DATA_DIR"
 sudo chown -R elasticsearch:elasticsearch "$CONFIG_DIR"
 
-
+# Configure firewall to allow Elasticsearch ports (9200 and 9300)
+echo "Configuring firewall to allow incoming traffic on ports 9200 and 9300..."
+sudo ufw allow 9200:9300/tcp
+sudo ufw reload
 
 # Create a systemd service file for Elasticsearch
 echo "Creating systemd service..."
