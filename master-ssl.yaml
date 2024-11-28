@@ -1,19 +1,5 @@
-cluster.name: gf-cluster
-node.name: master-1
-node.master: true
-node.data: false
-http.port: 9200
-network.host: 0.0.0.0
 xpack.security.enabled: true
 xpack.security.transport.ssl.enabled: true
 xpack.security.transport.ssl.verification.mode: certificate
 xpack.security.transport.ssl.keystore.path: /certs/elastic-stack-ca.p12
 xpack.security.transport.ssl.truststore.path: /certs/elastic-stack-ca.p12
-discovery.seed_hosts:
-  - "10.190.102.53"
-  - "10.190.102.54"
-  - "10.190.102.55"
-path.data: /data
-path.logs: /var/log/elasticsearch
-cluster.initial_master_nodes:
-  - "master-1"

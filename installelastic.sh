@@ -9,25 +9,23 @@ else
 fi
 
 # Check for sufficient arguments
-if [ $# -ne 2 ]; then
-  echo "Usage: $0 <type: master|data> <node-id>"
-  echo "Example: $0 master 1"
+if [ $# -ne 3 ]; then
+  echo "Usage: $0 <cluster-name> <role: master|data> <node-name>"
+  echo "Example: $0 my-cluster master master-1"
   exit 1
 fi
 
-ROLE=$1
-NODE_ID=$2
-NODE_NAME=""
+CLUSTER_NAME=$1
+ROLE=$2
+NODE_NAME=$3
 
 # Select YAML based on role
 if [ "$ROLE" == "master" ]; then
-  YAML_FILE="master.yaml"
-  NODE_NAME="master-$NODE_ID"
+  YAML_FILE="master_node.yaml"
 elif [ "$ROLE" == "data" ]; then
-  YAML_FILE="data.yaml"
-  NODE_NAME="data-$NODE_ID"
+  YAML_FILE="datanode.yaml"
 else
-  echo "Invalid type: $ROLE. Use 'master' or 'data'."
+  echo "Invalid role: $ROLE. Use 'master' or 'data'."
   exit 1
 fi
 
@@ -36,6 +34,55 @@ if [ -z "$ELASTIC_VERSION" ] || [ -z "$INSTALL_DIR" ] || [ -z "$CONFIG_DIR" ] ||
   echo "One or more required environment variables are missing. Please check elastic_config.env."
   exit 1
 fi
+
+# Create the final YAML content
+echo "Creating final YAML configuration for $ROLE node..."
+
+# Start with the template (either master or data YAML file)
+if [ "$ROLE" == "master" ]; then
+  FINAL_YAML=$(cat <<EOF
+node.name: $NODE_NAME
+node.master: true
+node.data: false
+http.port: 9200
+network.host: 0.0.0.0
+path.data: /data
+path.logs: /var/log/elasticsearch
+discovery.seed_hosts: [${SEED_HOSTS[*]}]
+cluster.name: $CLUSTER_NAME
+cluster.initial_master_nodes:
+  - "$NODE_NAME"
+EOF
+)
+
+elif [ "$ROLE" == "data" ]; then
+  FINAL_YAML=$(cat <<EOF
+node.name: $NODE_NAME
+node.master: false
+node.data: true
+network.host: 0.0.0.0
+path.data: /data
+path.logs: /var/log/elasticsearch
+discovery.seed_hosts: [${SEED_HOSTS[*]}]
+cluster.name: $CLUSTER_NAME
+EOF
+)
+
+fi
+
+# Copy the final YAML content to CORE_CONFIG_DIR
+echo "$FINAL_YAML" | sudo tee "$CORE_CONFIG_DIR" > /dev/null
+
+# Verify the YAML file has been updated
+if [ -f "$CORE_CONFIG_DIR" ]; then
+  echo "YAML configuration file has been successfully updated in $CORE_CONFIG_DIR."
+else
+  echo "Failed to update the YAML configuration file."
+  exit 1
+fi
+
+# Proceed with the rest of the Elasticsearch installation steps
+echo "Continuing with Elasticsearch installation..."
 
 # Update the package index and install prerequisites
 echo "Updating package index and installing prerequisites..."
@@ -74,22 +121,6 @@ sudo chown -R elasticsearch:elasticsearch "$INSTALL_DIR"
 sudo chown -R elasticsearch:elasticsearch "$DATA_DIR"
 sudo chown -R elasticsearch:elasticsearch "$CONFIG_DIR"
 
-# Configure Elasticsearch
-echo "Configuring Elasticsearch for role: $ROLE, node name: $NODE_NAME..."
-
-# Ensure the YAML file exists
-if [ ! -f "$YAML_DIR/$YAML_FILE" ]; then
-  echo "Configuration file $YAML_FILE not found in $YAML_DIR!"
-  exit 1
-fi
-
-# Copy the relevant YAML configuration
-sudo cp "$YAML_DIR/$YAML_FILE" "$CONFIG_DIR/elasticsearch.yml"
-
-# Append dynamic settings to the Elasticsearch configuration
-echo "Adding dynamic settings to Elasticsearch configuration..."
-echo "node.name: $NODE_NAME" | sudo tee -a "$CONFIG_DIR/elasticsearch.yml"
-echo "discovery.seed_hosts: [${SEED_HOSTS[*]}]" | sudo tee -a "$CONFIG_DIR/elasticsearch.yml"
 exit 1
 
 # Create a systemd service file for Elasticsearch
