@@ -110,6 +110,7 @@ if ! command -v ufw &> /dev/null; then
   echo "UFW is not installed. Installing ufw..."
   sudo apt-get update -y
   sudo apt-get install -y ufw
+  sudo ufw enable
 else
   echo "UFW is already installed."
 fi
@@ -128,8 +129,12 @@ node.name: $NODE_NAME
 node.roles: ["master"]
 http.port: 9200
 network.host: 0.0.0.0
-xpack.security.enabled: false
-xpack.security.transport.ssl.enabled: false
+xpack.security.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.client_authentication: required
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
 xpack.security.http.ssl.enabled: false
 path.data: /data
 path.logs: /var/log/elasticsearch
@@ -151,11 +156,16 @@ elif [ "$ROLE" == "data" ]; then
 node.name: $NODE_NAME
 node.roles: ["data"]
 network.host: 0.0.0.0
-xpack.security.enabled: false
-xpack.security.transport.ssl.enabled: false
+xpack.security.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.client_authentication: required
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
 xpack.security.http.ssl.enabled: false
 path.data: /data
 path.logs: /var/log/elasticsearch
+cluster.name: $CLUSTER_NAME
 discovery.seed_hosts:
 
 EOF
@@ -182,7 +192,90 @@ fi
 # Configure firewall to allow Elasticsearch ports (9200 and 9300)
 echo "Configuring firewall to allow incoming traffic on ports 9200 and 9300..."
 sudo ufw allow 9200:9300/tcp
+sudo ufw allow 8000
 sudo ufw reload
+## NEWCODE BLOCK START
+if [ "$ROLE" == "master" ]; then
+  # Navigate to the Elasticsearch install folder
+  cd /opt/elasticsearch
+  
+  # Generate the CA certificate
+  ./bin/elasticsearch-certutil ca
+
+  # Generate the Elasticsearch certificate using the CA
+  ./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
+  
+  # Copy the elastic-certificates.p12 file to the config folder
+  cp elastic-certificates.p12 config/
+
+  # Start a Python HTTP server to serve the file for temporary use
+  echo "Starting Python HTTP server on port 8000..."
+  
+  # Check if Python3 is installed, and install it if not
+  if ! command -v python3 &> /dev/null; then
+    echo "Python3 not found, installing it..."
+    sudo apt-get update -y
+    sudo apt-get install -y python3
+  fi
+  
+  python3 -m http.server 8000 &
+  
+  # Inform the user how to download the file
+  echo "You can now download the certificate from http://<your-server-ip>:8000/elastic-certificates.p12"
+  
+  # Wait for the user to press Ctrl+C to stop the server
+  wait
+  
+  # Once the server is stopped, the script will continue
+  echo "Python HTTP server has been stopped. Continuing with the script..."
+
+  # Add permissions for the elasticsearch user to the certificate file
+  echo "Setting permissions for elasticsearch user on elastic-certificates.p12..."
+  sudo chown elasticsearch:elasticsearch /opt/elasticsearch/config/elastic-certificates.p12
+  sudo chmod 644 /opt/elasticsearch/config/elastic-certificates.p12
+
+fi
+
+
+if [ "$ROLE" == "data" ]; then
+  # Navigate to the /opt/elasticsearch/config folder
+  cd /opt/elasticsearch/config
+  
+  # Get the first seed host from SEED_HOSTS and construct the URL
+  SEED_HOST_IP="${SEED_HOSTS[0]}"
+  URL="http://$SEED_HOST_IP:8000/elastic-certificates.p12"
+  
+  # Check if wget is installed, and install it if not
+  if ! command -v wget &> /dev/null; then
+    echo "wget not found, installing it..."
+    sudo apt-get update -y
+    sudo apt-get install -y wget
+  fi
+
+  # Try to download the elastic-certificates.p12 file with retries
+  echo "Attempting to download elastic-certificates.p12 from $URL..."
+  RETRIES=0
+  MAX_RETRIES=50
+
+  until wget "$URL" -O elastic-certificates.p12; do
+    if [ $RETRIES -ge $MAX_RETRIES ]; then
+      echo "Failed to download elastic-certificates.p12 after $MAX_RETRIES attempts. Exiting."
+      exit 1
+    fi
+    echo "Download failed, retrying... ($((RETRIES+1))/$MAX_RETRIES)"
+    ((RETRIES++))
+    sleep 5
+  done
+
+  # Once the file is downloaded, set permissions for elasticsearch user
+  echo "Setting permissions for elasticsearch user on elastic-certificates.p12..."
+  sudo chown elasticsearch:elasticsearch elastic-certificates.p12
+  sudo chmod 644 elastic-certificates.p12
+
+fi
+
+
+## NEWCODE BLOCK END
 
 # Create a systemd service file for Elasticsearch
 echo "Creating systemd service..."
