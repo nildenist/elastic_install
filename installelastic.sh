@@ -42,8 +42,7 @@ echo "Creating final YAML configuration for $ROLE node..."
 if [ "$ROLE" == "master" ]; then
   FINAL_YAML=$(cat <<EOF
 node.name: $NODE_NAME
-node.master: true
-node.data: false
+node.roles: ["master"]
 http.port: 9200
 network.host: 0.0.0.0
 path.data: /data
@@ -58,8 +57,7 @@ EOF
 elif [ "$ROLE" == "data" ]; then
   FINAL_YAML=$(cat <<EOF
 node.name: $NODE_NAME
-node.master: false
-node.data: true
+node.roles: ["data"]
 network.host: 0.0.0.0
 path.data: /data
 path.logs: /var/log/elasticsearch
