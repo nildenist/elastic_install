@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# Author: Ozgur SALGINCI
 # Load configuration file
 if [ -f "elastic_config.env" ]; then
   source elastic_config.env
