@@ -35,6 +35,79 @@ if [ -z "$ELASTIC_VERSION" ] || [ -z "$INSTALL_DIR" ] || [ -z "$CONFIG_DIR" ] ||
   exit 1
 fi
 
+# Create the final YAML content
+echo "Creating final YAML configuration for $ROLE node..."
+
+# Start with the template (either master or data YAML file)
+if [ "$ROLE" == "master" ]; then
+  FINAL_YAML=$(cat <<EOF
+node.name: $NODE_NAME
+node.roles: ["master"]
+http.port: 9200
+network.host: 0.0.0.0
+xpack.security.enabled: false
+xpack.security.transport.ssl.enabled: false
+xpack.security.http.ssl.enabled: false
+path.data: /data
+path.logs: /var/log/elasticsearch
+cluster.name: $CLUSTER_NAME
+cluster.initial_master_nodes:
+  - "$NODE_NAME"
+discovery.seed_hosts:
+EOF
+)
+
+  # Add seed hosts as individual lines
+  for SEED in "${SEED_HOSTS[@]}"; do
+    FINAL_YAML+=$(printf '  - "%s"\n' "$SEED")
+  done
+
+elif [ "$ROLE" == "data" ]; then
+  FINAL_YAML=$(cat <<EOF
+node.name: $NODE_NAME
+node.roles: ["data"]
+network.host: 0.0.0.0
+xpack.security.enabled: false
+xpack.security.transport.ssl.enabled: false
+xpack.security.http.ssl.enabled: false
+path.data: /data
+path.logs: /var/log/elasticsearch
+discovery.seed_hosts:
+EOF
+)
+
+  # Add seed hosts as individual lines
+  for SEED in "${SEED_HOSTS[@]}"; do
+    FINAL_YAML+=$(printf '  - "%s"\n' "$SEED")
+  done
+
+fi
+
+# Copy the final YAML content to CORE_CONFIG_DIR
+echo "$FINAL_YAML" | sudo tee "$CORE_CONFIG_DIR" > /dev/null
+
+# Verify the YAML file has been updated
+if [ -f "$CORE_CONFIG_DIR" ]; then
+  echo "YAML configuration file has been successfully updated in $CORE_CONFIG_DIR."
+else
+  echo "Failed to update the YAML configuration file."
+  exit 1
+fi
+
+# Check if UFW is installed, and install it if necessary
+echo "Checking if ufw is installed..."
+if ! command -v ufw &> /dev/null; then
+  echo "UFW is not installed. Installing ufw..."
+  sudo apt-get update -y
+  sudo apt-get install -y ufw
+else
+  echo "UFW is already installed."
+fi
+
+# Update the package index and install prerequisites
+echo "Installing additional dependencies..."
+sudo apt-get install -y wget curl apt-transport-https openjdk-17-jdk
+
 # Install and configure Elasticsearch
 if [ ! -d "$INSTALL_DIR" ]; then
   echo "Downloading and installing Elasticsearch $ELASTIC_VERSION..."
@@ -70,70 +143,6 @@ sudo chown -R elasticsearch:elasticsearch "$DATA_DIR"
 sudo chown -R elasticsearch:elasticsearch "$CONFIG_DIR"
 sudo chown -R elasticsearch:elasticsearch /var/log/elasticsearch
 sudo chmod -R 755 /var/log/elasticsearch
-
-# Create the final YAML content
-echo "Creating final YAML configuration for $ROLE node..."
-
-# Start with the template (either master or data YAML file)
-if [ "$ROLE" == "master" ]; then
-  FINAL_YAML=$(cat <<EOF
-node.name: $NODE_NAME
-node.roles: ["master"]
-http.port: 9200
-network.host: 0.0.0.0
-xpack.security.enabled: false
-xpack.security.transport.ssl.enabled: false
-xpack.security.http.ssl.enabled: false
-path.data: /data
-path.logs: /var/log/elasticsearch
-discovery.seed_hosts: [${SEED_HOSTS[*]}]
-cluster.name: $CLUSTER_NAME
-cluster.initial_master_nodes:
-  - "$NODE_NAME"
-EOF
-)
-
-elif [ "$ROLE" == "data" ]; then
-  FINAL_YAML=$(cat <<EOF
-node.name: $NODE_NAME
-node.roles: ["data"]
-network.host: 0.0.0.0
-xpack.security.enabled: false
-xpack.security.transport.ssl.enabled: false
-xpack.security.http.ssl.enabled: false
-path.data: /data
-path.logs: /var/log/elasticsearch
-discovery.seed_hosts: [${SEED_HOSTS[*]}]
-cluster.name: $CLUSTER_NAME
-EOF
-)
-
-fi
-
-# Copy the final YAML content to CORE_CONFIG_DIR
-echo "$FINAL_YAML" | sudo tee "$CORE_CONFIG_DIR" > /dev/null
-
-# Verify the YAML file has been updated
-if [ -f "$CORE_CONFIG_DIR" ]; then
-  echo "YAML configuration file has been successfully updated in $CORE_CONFIG_DIR."
-else
-  echo "Failed to update the YAML configuration file."
-  exit 1
-fi
-
-# Check if UFW is installed, and install it if necessary
-echo "Checking if ufw is installed..."
-if ! command -v ufw &> /dev/null; then
-  echo "UFW is not installed. Installing ufw..."
-  sudo apt-get update -y
-  sudo apt-get install -y ufw
-else
-  echo "UFW is already installed."
-fi
-
-# Update the package index and install prerequisites
-echo "Installing additional dependencies..."
-sudo apt-get install -y wget curl apt-transport-https openjdk-17-jdk
 
 # Configure firewall to allow Elasticsearch ports (9200 and 9300)
 echo "Configuring firewall to allow incoming traffic on ports 9200 and 9300..."
