@@ -107,7 +107,7 @@ discovery.seed_hosts:
 EOF
 )
 
-  # Add seed hosts as individual lines
+  # Add seed hosts as individual lines with proper indentation
   for SEED in "${SEED_HOSTS[@]}"; do
     FINAL_YAML+=$(printf '  - "%s"\n' "$SEED")
   done
@@ -126,7 +126,7 @@ discovery.seed_hosts:
 EOF
 )
 
-  # Add seed hosts as individual lines
+  # Add seed hosts as individual lines with proper indentation
   for SEED in "${SEED_HOSTS[@]}"; do
     FINAL_YAML+=$(printf '  - "%s"\n' "$SEED")
   done
