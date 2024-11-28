@@ -35,6 +35,25 @@ if [ -z "$ELASTIC_VERSION" ] || [ -z "$INSTALL_DIR" ] || [ -z "$CONFIG_DIR" ] ||
   exit 1
 fi
 
+# Set persistent ulimit for elasticsearch user
+echo "Setting ulimit for 'elasticsearch' user to 65535..."
+
+# Check if the limit is already set in /etc/security/limits.conf
+if ! grep -q "elasticsearch  -  nofile  65535" /etc/security/limits.conf; then
+  echo "Adding ulimit for elasticsearch user to /etc/security/limits.conf..."
+  echo "elasticsearch  -  nofile  65535" | sudo tee -a /etc/security/limits.conf > /dev/null
+else
+  echo "ulimit for elasticsearch user is already set in /etc/security/limits.conf."
+fi
+
+# Ensure PAM limits are applied (if needed on your system)
+if ! grep -q "session required pam_limits.so" /etc/pam.d/common-session; then
+  echo "Ensuring pam_limits.so is configured for session limits..."
+  echo "session required pam_limits.so" | sudo tee -a /etc/pam.d/common-session > /dev/null
+else
+  echo "pam_limits.so is already configured."
+fi
+
 # Install and configure Elasticsearch
 if [ ! -d "$INSTALL_DIR" ]; then
   echo "Downloading and installing Elasticsearch $ELASTIC_VERSION..."
