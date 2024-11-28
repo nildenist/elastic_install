@@ -35,6 +35,42 @@ if [ -z "$ELASTIC_VERSION" ] || [ -z "$INSTALL_DIR" ] || [ -z "$CONFIG_DIR" ] ||
   exit 1
 fi
 
+# Install and configure Elasticsearch
+if [ ! -d "$INSTALL_DIR" ]; then
+  echo "Downloading and installing Elasticsearch $ELASTIC_VERSION..."
+  wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-$ELASTIC_VERSION-linux-x86_64.tar.gz
+  if [ $? -ne 0 ]; then
+    echo "Failed to download Elasticsearch. Exiting."
+    exit 1
+  fi
+  tar -xzf elasticsearch-$ELASTIC_VERSION-linux-x86_64.tar.gz
+  sudo mv elasticsearch-$ELASTIC_VERSION "$INSTALL_DIR"
+  rm elasticsearch-$ELASTIC_VERSION-linux-x86_64.tar.gz
+else
+  echo "Elasticsearch is already installed at $INSTALL_DIR."
+fi
+
+# Create a dedicated user and group for Elasticsearch if not exists
+echo "Creating 'elasticsearch' user and group..."
+if ! id -u elasticsearch &>/dev/null; then
+  sudo groupadd elasticsearch
+  sudo useradd -g elasticsearch -s /bin/bash -M -r elasticsearch
+else
+  echo "'elasticsearch' user and group already exist."
+fi
+
+# Ensure the required directories exist
+echo "Ensuring required directories exist..."
+sudo mkdir -p "$DATA_DIR" "$CONFIG_DIR" "/var/log/elasticsearch"
+
+# Set permissions for Elasticsearch directories
+echo "Setting file permissions..."
+sudo chown -R elasticsearch:elasticsearch "$INSTALL_DIR"
+sudo chown -R elasticsearch:elasticsearch "$DATA_DIR"
+sudo chown -R elasticsearch:elasticsearch "$CONFIG_DIR"
+sudo chown -R elasticsearch:elasticsearch /var/log/elasticsearch
+sudo chmod -R 755 /var/log/elasticsearch
+
 # Create the final YAML content
 echo "Creating final YAML configuration for $ROLE node..."
 
@@ -98,42 +134,6 @@ fi
 # Update the package index and install prerequisites
 echo "Installing additional dependencies..."
 sudo apt-get install -y wget curl apt-transport-https openjdk-17-jdk
-
-# Install and configure Elasticsearch
-if [ ! -d "$INSTALL_DIR" ]; then
-  echo "Downloading and installing Elasticsearch $ELASTIC_VERSION..."
-  wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-$ELASTIC_VERSION-linux-x86_64.tar.gz
-  if [ $? -ne 0 ]; then
-    echo "Failed to download Elasticsearch. Exiting."
-    exit 1
-  fi
-  tar -xzf elasticsearch-$ELASTIC_VERSION-linux-x86_64.tar.gz
-  sudo mv elasticsearch-$ELASTIC_VERSION "$INSTALL_DIR"
-  rm elasticsearch-$ELASTIC_VERSION-linux-x86_64.tar.gz
-else
-  echo "Elasticsearch is already installed at $INSTALL_DIR."
-fi
-
-# Create a dedicated user and group for Elasticsearch if not exists
-echo "Creating 'elasticsearch' user and group..."
-if ! id -u elasticsearch &>/dev/null; then
-  sudo groupadd elasticsearch
-  sudo useradd -g elasticsearch -s /bin/bash -M -r elasticsearch
-else
-  echo "'elasticsearch' user and group already exist."
-fi
-
-# Ensure the required directories exist
-echo "Ensuring required directories exist..."
-sudo mkdir -p "$DATA_DIR" "$CONFIG_DIR" "/var/log/elasticsearch"
-
-# Set permissions for Elasticsearch directories
-echo "Setting file permissions..."
-sudo chown -R elasticsearch:elasticsearch "$INSTALL_DIR"
-sudo chown -R elasticsearch:elasticsearch "$DATA_DIR"
-sudo chown -R elasticsearch:elasticsearch "$CONFIG_DIR"
-sudo chown -R elasticsearch:elasticsearch /var/log/elasticsearch
-sudo chmod -R 755 /var/log/elasticsearch
 
 # Configure firewall to allow Elasticsearch ports (9200 and 9300)
 echo "Configuring firewall to allow incoming traffic on ports 9200 and 9300..."
