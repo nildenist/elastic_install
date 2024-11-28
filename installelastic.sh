@@ -104,13 +104,16 @@ cluster.name: $CLUSTER_NAME
 cluster.initial_master_nodes:
   - "$NODE_NAME"
 discovery.seed_hosts:
+
 EOF
 )
 
-  # Add seed hosts as individual lines with proper indentation
+  
+  # Add seed hosts with proper indentation under discovery.seed_hosts
   for SEED in "${SEED_HOSTS[@]}"; do
     FINAL_YAML+=$(printf '  - "%s"\n' "$SEED")
   done
+
 
 elif [ "$ROLE" == "data" ]; then
   FINAL_YAML=$(cat <<EOF
@@ -123,10 +126,11 @@ xpack.security.http.ssl.enabled: false
 path.data: /data
 path.logs: /var/log/elasticsearch
 discovery.seed_hosts:
+
 EOF
 )
 
-  # Add seed hosts as individual lines with proper indentation
+   # Add seed hosts with proper indentation under discovery.seed_hosts
   for SEED in "${SEED_HOSTS[@]}"; do
     FINAL_YAML+=$(printf '  - "%s"\n' "$SEED")
   done
