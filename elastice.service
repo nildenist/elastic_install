@@ -1,0 +1,17 @@
+#Developer : Ozgur SALGINCI
+#Put the file in /etc/systemd/system
+#Make sure that the elasticsearch and run directory have permission of appropriate user
+#In order to start it during boot, sudo systemctl enable elasticsearch
+
+[Unit]
+Description=ElasticSearch Service
+After=network.target
+
+[Service]
+User=elasticsearch
+Group=elasticsearch 
+ExecStart=/opt/elasticsearch/bin/elasticsearch
+Restart=always
+
+[Install]
+WantedBy=default.target
