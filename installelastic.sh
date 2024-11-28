@@ -54,6 +54,20 @@ else
   echo "pam_limits.so is already configured."
 fi
 
+# Set vm.max_map_count permanently
+echo "Setting vm.max_map_count to 262144..."
+
+# Check if vm.max_map_count is already set in /etc/sysctl.conf
+if ! grep -q "vm.max_map_count=262144" /etc/sysctl.conf; then
+  echo "Adding vm.max_map_count=262144 to /etc/sysctl.conf..."
+  echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf > /dev/null
+else
+  echo "vm.max_map_count is already set in /etc/sysctl.conf."
+fi
+
+# Reload sysctl configuration to apply the change
+sudo sysctl -p
+
 # Install and configure Elasticsearch
 if [ ! -d "$INSTALL_DIR" ]; then
   echo "Downloading and installing Elasticsearch $ELASTIC_VERSION..."
