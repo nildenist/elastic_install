@@ -21,15 +21,6 @@ CLUSTER_NAME=$1
 ROLE=$2
 NODE_NAME=$3
 
-# Select YAML based on role
-if [ "$ROLE" == "master" ]; then
-  YAML_FILE="master_node.yaml"
-elif [ "$ROLE" == "data" ]; then
-  YAML_FILE="datanode.yaml"
-else
-  echo "Invalid role: $ROLE. Use 'master' or 'data'."
-  exit 1
-fi
 
 # Validate configuration variables
 if [ -z "$ELASTIC_VERSION" ] || [ -z "$INSTALL_DIR" ] || [ -z "$CONFIG_DIR" ] || [ -z "$DATA_DIR" ] || [ -z "${SEED_HOSTS[*]}" ]; then
@@ -40,7 +31,7 @@ fi
 
 if [ "$ROLE" == "master" ]; then
  # Query if Kibana is going to be installed.
- read -p "Do you want to install Kibana? (yes/no): " install_kibana
+ read -p "Do you want to install Kibana? (y/n): " install_kibana
  if [[ "$install_kibana" =~ ^[yY]$ ]]; then
   # Check if the kibana_config.env file exists
     if [[ -f "kibana_config.env" ]]; then
@@ -50,9 +41,9 @@ if [ "$ROLE" == "master" ]; then
         source kibana_config.env
 
         # Validate if all required variables are present
-        if [[ -z "$KIBANA_VERSION" || -z "$KIBANA_INSTALL_DIR" || -z "$KIBANA_CONFIG_DIR" || -z "$ES_HOST" || -z "$KIBANA_HOST" || -z "$KIBANA_PASS" || -z "$KIBANA_USER" ]]; then
+        if [[ -z "$KIBANA_VERSION" || -z "$KIBANA_INSTALL_DIR" || -z "$KIBANA_CONFIG_DIR" || -z "$ES_HOST" || -z "$KIBANA_HOST" || -z "$KIBANA_USER" ]]; then
             echo "Error: One or more required variables are missing in kibana_config.env."
-            echo "Please ensure the following variables are set: KIBANA_VERSION, KIBANA_INSTALL_DIR, KIBANA_CONFIG_DIR, ES_HOST, KIBANA_HOST, KIBANA_PASS, KIBANA_USER."
+            echo "Please ensure the following variables are set: KIBANA_VERSION, KIBANA_INSTALL_DIR, KIBANA_CONFIG_DIR, ES_HOST, KIBANA_HOST, KIBANA_USER."
             exit 1
         else
             echo "kibana_config.env validated successfully."
@@ -62,8 +53,7 @@ if [ "$ROLE" == "master" ]; then
             echo "KIBANA_CONFIG_DIR=$KIBANA_CONFIG_DIR"
             echo "ES_HOST=$ES_HOST"
             echo "KIBANA_HOST=$KIBANA_HOST"
-            echo "KIBANA_USER=$KIBANA_USER"
-            echo "KIBANA_PASS=$KIBANA_PASS"
+            echo "KIBANA_USER=$KIBANA_USER" 
         fi
     else
         echo "Error: kibana_config.env file not found."
@@ -265,7 +255,19 @@ SERVER_PID=$!  # Get the process ID of the HTTP server
 
 # Inform the user how to download the file
 echo "You can now download the certificate from http://<your-server-ip>:8000/elastic-certificates.p12"
+echo "-------------------------"
+echo "-------------------------"
+echo "-------------------------"
+echo "-------------------------"
+echo "Temporary web server started. Waiting for clients to download certificate."
+echo "-------------------------"
+echo "-------------------------"
+echo "When all clients downloaded you need to press x to continue next step."
 echo "Press 'x' to stop the server and continue."
+echo "-------------------------"
+echo "-------------------------"
+echo "-------------------------" 
+
 
 # Wait for user input to terminate the server
 while true; do
@@ -277,7 +279,8 @@ while true; do
     break
   fi
 done
-  
+  echo "disable temporary port"
+  sudo ufw deny 8000
   # Once the server is stopped, the script will continue
   echo "Python HTTP server has been stopped. Continuing with the script..."
 
@@ -431,12 +434,18 @@ if [[ "$install_kibana" =~ ^[yY]$ ]]; then
     echo "Starting Kibana installation process..."
 
     # Prompt for Kibana password if not already set
-    if [[ -z "$KIBANA_PASS" ]]; then
+    
         read -sp "Please enter the Kibana password: " KIBANA_PASS
         echo  # For newline after password input
+    
+    if ! id -u kibana > /dev/null 2>&1; then
+        echo "Creating Kibana user and group..."
+        sudo groupadd kibana
+        sudo useradd -g kibana -s /bin/bash -d $KIBANA_INSTALL_DIR kibana
     fi
 
-
+      sudo chown -R kibana:kibana /opt/kibana/data
+      sudo chmod -R 775 /opt/kibana/data
 
     # Install Kibana (using the version defined in the environment file)
     echo "Installing Kibana version $KIBANA_VERSION..."
@@ -449,14 +458,10 @@ if [[ "$install_kibana" =~ ^[yY]$ ]]; then
     echo "Configuring Kibana..."
     if [[ -f "$KIBANA_CONFIG_DIR/kibana.yml" ]]; then
         # Modify Kibana configuration file (kibana.yml)
-        sed -i "s|# server.host: \"0.0.0.0\"|server.host: \"$KIBANA_HOST\"|" "$KIBANA_CONFIG_DIR/kibana.yml"
-        sed -i "s|# elasticsearch.hosts: \[\"http://localhost:9200\"\]|elasticsearch.hosts: [\"$SEED_HOST_IP\"]|" "$KIBANA_CONFIG_DIR/kibana.yml"
-        sed -i "s|# xpack.security.enabled: false|xpack.security.enabled: true|" "$KIBANA_CONFIG_DIR/kibana.yml"
-        sed -i "s|# xpack.security.authc.basic.enabled: true|xpack.security.authc.basic.enabled: true|" "$KIBANA_CONFIG_DIR/kibana.yml"
-        
-        # Add Kibana user and password
-        echo "Kibana user: $KIBANA_USER" >> "$KIBANA_CONFIG_DIR/kibana.yml"
-        echo "Kibana password: $KIBANA_PASS" >> "$KIBANA_CONFIG_DIR/kibana.yml"
+         
+        echo "serverhost: \"$KIBANA_HOST\"" >> "$KIBANA_CONFIG_DIR/kibana.yml"
+        echo "elasticsearch.username: \"$KIBANA_USER\"" >> "$KIBANA_CONFIG_DIR/kibana.yml"
+        echo "elasticsearch.password: $KIBANA_PASS" >> "$KIBANA_CONFIG_DIR/kibana.yml"
     else
         echo "Error: Kibana configuration file not found at $KIBANA_CONFIG_DIR/kibana.yml."
         exit 1
@@ -464,8 +469,10 @@ if [[ "$install_kibana" =~ ^[yY]$ ]]; then
   
     # Configure firewall settings for Kibana
     echo "Configuring firewall for Kibana..."
-    firewall-cmd --zone=public --add-port=5601/tcp --permanent
-    firewall-cmd --reload
+    sudo ufw allow 5601/tcp
+    sudo ufw allow 5601
+    sudo ufw reload
+    
 
     # Set up Kibana service (assuming systemd)
     echo "Creating Kibana service..."
