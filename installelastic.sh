@@ -426,6 +426,8 @@ fi
 
 # Proceed to Kibana installation section, after ensuring we are on the master node
 if [ "$ROLE" == "master" ]; then
+
+if [[ "$install_kibana" =~ ^[yY]$ ]]; then
     echo "Starting Kibana installation process..."
 
     # Prompt for Kibana password if not already set
@@ -433,6 +435,15 @@ if [ "$ROLE" == "master" ]; then
         read -sp "Please enter the Kibana password: " KIBANA_PASS
         echo  # For newline after password input
     fi
+
+
+
+    # Install Kibana (using the version defined in the environment file)
+    echo "Installing Kibana version $KIBANA_VERSION..."
+    wget https://artifacts.elastic.co/downloads/kibana/kibana-$KIBANA_VERSION-linux-x86_64.tar.gz
+    tar -xvzf kibana-$KIBANA_VERSION-linux-x86_64.tar.gz
+    mv kibana-$KIBANA_VERSION $KIBANA_INSTALL_DIR
+
 
     # Update the Kibana configuration (kibana.yml)
     echo "Configuring Kibana..."
@@ -450,13 +461,7 @@ if [ "$ROLE" == "master" ]; then
         echo "Error: Kibana configuration file not found at $KIBANA_CONFIG_DIR/kibana.yml."
         exit 1
     fi
-
-    # Install Kibana (using the version defined in the environment file)
-    echo "Installing Kibana version $KIBANA_VERSION..."
-    wget https://artifacts.elastic.co/downloads/kibana/kibana-$KIBANA_VERSION-linux-x86_64.tar.gz
-    tar -xvzf kibana-$KIBANA_VERSION-linux-x86_64.tar.gz
-    mv kibana-$KIBANA_VERSION $KIBANA_INSTALL_DIR
-
+  
     # Configure firewall settings for Kibana
     echo "Configuring firewall for Kibana..."
     firewall-cmd --zone=public --add-port=5601/tcp --permanent
@@ -486,4 +491,6 @@ EOF
     systemctl start kibana
 
     echo "Kibana installation and setup completed successfully."
+fi
+
 fi
