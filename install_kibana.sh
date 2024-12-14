@@ -43,6 +43,9 @@ echo "Setting permissions for $INSTALL_DIR..."
 sudo chown -R $USER:$USER "$INSTALL_DIR"
 sudo chmod -R 755 "$INSTALL_DIR"
 
+
+
+
 # Create a systemd service file for Kibana
 echo "Creating Kibana systemd service..."
 sudo bash -c 'cat <<EOL > /etc/systemd/system/kibana.service

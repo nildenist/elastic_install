@@ -245,17 +245,6 @@ done
   sudo chmod 644 /opt/elasticsearch/config/elastic-certificates.p12
 
 
-echo "Creating built-in passwords."
-read -p "Would you like to create built-in passwords now? (y/N): " USER_CHOICE
-
-if [[ "$USER_CHOICE" =~ ^[yY]$ ]]; then
-  echo "Running built-in password setup..."
-  /opt/elasticsearch/bin/elasticsearch-setup-passwords interactive
-else
-  echo "Skipping built-in password creation."
-fi
-
-echo "Script execution completed."
 
 
 fi
@@ -337,3 +326,22 @@ else
 fi
 
 echo "Elasticsearch installation and configuration complete for role: $ROLE, node name: $NODE_NAME."
+
+
+
+if [ "$ROLE" == "master" ]; then
+
+
+echo "Creating built-in passwords."
+read -p "Would you like to create built-in passwords now? (y/N): " USER_CHOICE
+
+if [[ "$USER_CHOICE" =~ ^[yY]$ ]]; then
+  echo "Running built-in password setup..."
+  /opt/elasticsearch/bin/elasticsearch-setup-passwords interactive
+else
+  echo "Skipping built-in password creation."
+fi
+
+echo "Script execution completed."
+
+fi

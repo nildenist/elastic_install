@@ -4,14 +4,36 @@ node.master and node.data is removed after 8.x
 instead you need to use node.roles:[master,data]
 
 
-Edit Master and Data Node configurations in 
-master.yaml and data.yaml
-describe your seeds 
-
+1- 
 
 git clone ...
-cd elastic/-install
+cd elastic-install
+
+
+2-
+
+Edit Master Elastic configurations in  
+  Edit elactic_config.env
+
+
+    describe your seeds  // consider first IP as master node. 
+
+
+3-
 chmod +x installelastic.sh
 
 ./installelastic.sh clustername master|data node_name
 
+for master cluster  (./installelastic.sh my-cluster master master-1)
+
+Run same command for all instances. 
+
+* At Master once installation completes, It generates CA certificate and  then creates a server to transfer certificates to clients (data nodes)
+
+Once certification transfers completed , Client installation ends  It waits you to press  x to continue process on server side. 
+
+
+Done
+
+# Kibana  Installation
+   Edit kibana_config.env
