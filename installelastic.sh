@@ -372,6 +372,8 @@ if [[ "$USER_CHOICE" =~ ^[yY]$ ]]; then
   fi
 else
   echo "Skipping built-in password creation."
+  echo "run /opt/elasticsearch/bin//elasticsearch-setup-passwords interactive"
+  echo "to generate built-in passwords"
 fi
 
 echo "Script execution completed."
