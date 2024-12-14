@@ -39,3 +39,7 @@ curl -X GET "localhost:9200/_cluster/health"
 
 # Kibana  Installation
    Edit kibana_config.env
+
+
+!! For testing purposes kibana listens on port 0.0.0.0 
+
