@@ -332,12 +332,44 @@ echo "Elasticsearch installation and configuration complete for role: $ROLE, nod
 if [ "$ROLE" == "master" ]; then
 
 
-echo "Creating built-in passwords."
+
+echo "Waiting for Elasticsearch to initialize..."
+# Wait for Elasticsearch to be available on port 9200
+RETRY_COUNT=0
+MAX_RETRIES=30
+while ! curl -s http://localhost:9200 >/dev/null; do
+  echo -n "."
+  sleep 2
+  ((RETRY_COUNT++))
+  if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+    echo -e "\nError: Elasticsearch service did not start within the expected time."
+    exit 1
+  fi
+done
+
+echo -e "\nElasticsearch is running."
+
+# Wait 10 seconds before proceeding with password setup
+echo -n "Preparing for password setup"
+for i in {1..10}; do
+  echo -n "."
+  sleep 1
+done
+echo ""
+
+# Run built-in password setup
 read -p "Would you like to create built-in passwords now? (y/N): " USER_CHOICE
 
 if [[ "$USER_CHOICE" =~ ^[yY]$ ]]; then
   echo "Running built-in password setup..."
-  /opt/elasticsearch/bin/elasticsearch-setup-passwords interactive
+  cd /opt/elasticsearch/bin/
+  ./elasticsearch-setup-passwords interactive
+  if [[ $? -eq 0 ]]; then
+    echo "Built-in passwords created successfully."
+  else
+    echo "Error occurred during built-in password setup."
+    exit 1
+  fi
 else
   echo "Skipping built-in password creation."
 fi
