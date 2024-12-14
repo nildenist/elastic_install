@@ -154,7 +154,7 @@ EOF
 elif [ "$ROLE" == "data" ]; then
   FINAL_YAML=$(cat <<EOF
 node.name: $NODE_NAME
-node.roles: ["data"]
+node.roles: ["master","data"]
 network.host: 0.0.0.0
 xpack.security.enabled: true
 xpack.security.transport.ssl.enabled: true
@@ -218,13 +218,23 @@ if [ "$ROLE" == "master" ]; then
     sudo apt-get install -y python3
   fi
   
-  python3 -m http.server 8000 &
-  
-  # Inform the user how to download the file
-  echo "You can now download the certificate from http://<your-server-ip>:8000/elastic-certificates.p12"
-  
-  # Wait for the user to press Ctrl+C to stop the server
-  wait
+ python3 -m http.server 8000 &
+SERVER_PID=$!  # Get the process ID of the HTTP server
+
+# Inform the user how to download the file
+echo "You can now download the certificate from http://<your-server-ip>:8000/elastic-certificates.p12"
+echo "Press 'x' to stop the server and continue."
+
+# Wait for user input to terminate the server
+while true; do
+  read -n 1 -s INPUT  # Read a single character without requiring Enter
+  if [[ "$INPUT" == "x" ]]; then
+    echo -e "\nStopping the server..."
+    kill $SERVER_PID  # Terminate the Python HTTP server
+    wait $SERVER_PID 2>/dev/null  # Ensure the process is properly cleaned up
+    break
+  fi
+done
   
   # Once the server is stopped, the script will continue
   echo "Python HTTP server has been stopped. Continuing with the script..."
@@ -233,6 +243,20 @@ if [ "$ROLE" == "master" ]; then
   echo "Setting permissions for elasticsearch user on elastic-certificates.p12..."
   sudo chown elasticsearch:elasticsearch /opt/elasticsearch/config/elastic-certificates.p12
   sudo chmod 644 /opt/elasticsearch/config/elastic-certificates.p12
+
+
+echo "Creating built-in passwords."
+read -p "Would you like to create built-in passwords now? (y/N): " USER_CHOICE
+
+if [[ "$USER_CHOICE" =~ ^[yY]$ ]]; then
+  echo "Running built-in password setup..."
+  /opt/elasticsearch/bin/elasticsearch-setup-passwords interactive
+else
+  echo "Skipping built-in password creation."
+fi
+
+echo "Script execution completed."
+
 
 fi
 
