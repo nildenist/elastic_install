@@ -444,14 +444,16 @@ if [[ "$install_kibana" =~ ^[yY]$ ]]; then
         sudo useradd -g kibana -s /bin/bash -d $KIBANA_INSTALL_DIR kibana
     fi
 
-      sudo chown -R kibana:kibana /opt/kibana/data
-      sudo chmod -R 775 /opt/kibana/data
-
+    
     # Install Kibana (using the version defined in the environment file)
     echo "Installing Kibana version $KIBANA_VERSION..."
     wget https://artifacts.elastic.co/downloads/kibana/kibana-$KIBANA_VERSION-linux-x86_64.tar.gz
     tar -xvzf kibana-$KIBANA_VERSION-linux-x86_64.tar.gz
     mv kibana-$KIBANA_VERSION $KIBANA_INSTALL_DIR
+      
+      
+      sudo chown -R kibana:kibana /opt/kibana/data
+      sudo chmod -R 775 /opt/kibana/data
 
 
     # Update the Kibana configuration (kibana.yml)
