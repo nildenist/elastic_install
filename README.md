@@ -4,6 +4,9 @@ node.master and node.data is removed after 8.x
 instead you need to use node.roles:[master,data]
 
 
+!! The script is writen for ubuntu 22.04 
+you may need to install some commands like python , git etc depending on your operating system 
+
 1- 
 
 git clone ...

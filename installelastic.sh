@@ -461,7 +461,7 @@ if [[ "$install_kibana" =~ ^[yY]$ ]]; then
     if [[ -f "$KIBANA_CONFIG_DIR/kibana.yml" ]]; then
         # Modify Kibana configuration file (kibana.yml)
          
-        echo "serverhost: \"$KIBANA_HOST\"" >> "$KIBANA_CONFIG_DIR/kibana.yml"
+        echo "server.host: \"$KIBANA_HOST\"" >> "$KIBANA_CONFIG_DIR/kibana.yml"
         echo "elasticsearch.username: \"$KIBANA_USER\"" >> "$KIBANA_CONFIG_DIR/kibana.yml"
         echo "elasticsearch.password: $KIBANA_PASS" >> "$KIBANA_CONFIG_DIR/kibana.yml"
     else
