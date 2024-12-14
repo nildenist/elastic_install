@@ -15,6 +15,8 @@ if [ $# -ne 3 ]; then
   exit 1
 fi
 
+
+
 CLUSTER_NAME=$1
 ROLE=$2
 NODE_NAME=$3
@@ -34,6 +36,46 @@ if [ -z "$ELASTIC_VERSION" ] || [ -z "$INSTALL_DIR" ] || [ -z "$CONFIG_DIR" ] ||
   echo "One or more required environment variables are missing. Please check elastic_config.env."
   exit 1
 fi
+
+
+if [ "$ROLE" == "master" ]; then
+ # Query if Kibana is going to be installed.
+ read -p "Do you want to install Kibana? (yes/no): " install_kibana
+ if [[ "$install_kibana" =~ ^[yY]$ ]]; then
+  # Check if the kibana_config.env file exists
+    if [[ -f "kibana_config.env" ]]; then
+        echo "kibana_config.env file found. Validating the variables..."
+
+        # Source the kibana_config.env to load the variables
+        source kibana_config.env
+
+        # Validate if all required variables are present
+        if [[ -z "$KIBANA_VERSION" || -z "$KIBANA_INSTALL_DIR" || -z "$KIBANA_CONFIG_DIR" || -z "$ES_HOST" || -z "$KIBANA_HOST" || -z "$KIBANA_PASS" || -z "$KIBANA_USER" ]]; then
+            echo "Error: One or more required variables are missing in kibana_config.env."
+            echo "Please ensure the following variables are set: KIBANA_VERSION, KIBANA_INSTALL_DIR, KIBANA_CONFIG_DIR, ES_HOST, KIBANA_HOST, KIBANA_PASS, KIBANA_USER."
+            exit 1
+        else
+            echo "kibana_config.env validated successfully."
+            echo "Using the following configuration:"
+            echo "KIBANA_VERSION=$KIBANA_VERSION"
+            echo "KIBANA_INSTALL_DIR=$KIBANA_INSTALL_DIR"
+            echo "KIBANA_CONFIG_DIR=$KIBANA_CONFIG_DIR"
+            echo "ES_HOST=$ES_HOST"
+            echo "KIBANA_HOST=$KIBANA_HOST"
+            echo "KIBANA_USER=$KIBANA_USER"
+            echo "KIBANA_PASS=$KIBANA_PASS"
+        fi
+    else
+        echo "Error: kibana_config.env file not found."
+        exit 1
+    fi
+else
+    echo "Skipping Kibana installation."
+fi
+
+fi
+
+
 
 # Set persistent ulimit for elasticsearch user
 echo "Setting ulimit for 'elasticsearch' user to 65535..."
@@ -378,4 +420,70 @@ fi
 
 echo "Script execution completed."
 
+fi
+
+
+
+# Proceed to Kibana installation section, after ensuring we are on the master node
+if [ "$ROLE" == "master" ]; then
+    echo "Starting Kibana installation process..."
+
+    # Prompt for Kibana password if not already set
+    if [[ -z "$KIBANA_PASS" ]]; then
+        read -sp "Please enter the Kibana password: " KIBANA_PASS
+        echo  # For newline after password input
+    fi
+
+    # Update the Kibana configuration (kibana.yml)
+    echo "Configuring Kibana..."
+    if [[ -f "$KIBANA_CONFIG_DIR/kibana.yml" ]]; then
+        # Modify Kibana configuration file (kibana.yml)
+        sed -i "s|# server.host: \"0.0.0.0\"|server.host: \"$KIBANA_HOST\"|" "$KIBANA_CONFIG_DIR/kibana.yml"
+        sed -i "s|# elasticsearch.hosts: \[\"http://localhost:9200\"\]|elasticsearch.hosts: [\"$SEED_HOST_IP\"]|" "$KIBANA_CONFIG_DIR/kibana.yml"
+        sed -i "s|# xpack.security.enabled: false|xpack.security.enabled: true|" "$KIBANA_CONFIG_DIR/kibana.yml"
+        sed -i "s|# xpack.security.authc.basic.enabled: true|xpack.security.authc.basic.enabled: true|" "$KIBANA_CONFIG_DIR/kibana.yml"
+        
+        # Add Kibana user and password
+        echo "Kibana user: $KIBANA_USER" >> "$KIBANA_CONFIG_DIR/kibana.yml"
+        echo "Kibana password: $KIBANA_PASS" >> "$KIBANA_CONFIG_DIR/kibana.yml"
+    else
+        echo "Error: Kibana configuration file not found at $KIBANA_CONFIG_DIR/kibana.yml."
+        exit 1
+    fi
+
+    # Install Kibana (using the version defined in the environment file)
+    echo "Installing Kibana version $KIBANA_VERSION..."
+    wget https://artifacts.elastic.co/downloads/kibana/kibana-$KIBANA_VERSION-linux-x86_64.tar.gz
+    tar -xvzf kibana-$KIBANA_VERSION-linux-x86_64.tar.gz
+    mv kibana-$KIBANA_VERSION $KIBANA_INSTALL_DIR
+
+    # Configure firewall settings for Kibana
+    echo "Configuring firewall for Kibana..."
+    firewall-cmd --zone=public --add-port=5601/tcp --permanent
+    firewall-cmd --reload
+
+    # Set up Kibana service (assuming systemd)
+    echo "Creating Kibana service..."
+    cat > /etc/systemd/system/kibana.service <<EOF
+[Unit]
+Description=Kibana
+After=network.target
+
+[Service]
+ExecStart=$KIBANA_INSTALL_DIR/bin/kibana
+Restart=always
+User=kibana
+Group=kibana
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Start and enable the Kibana service
+    echo "Starting Kibana service..."
+    systemctl daemon-reload
+    systemctl enable kibana
+    systemctl start kibana
+
+    echo "Kibana installation and setup completed successfully."
 fi

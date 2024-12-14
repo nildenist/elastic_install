@@ -35,5 +35,7 @@ Once certification transfers completed , Client installation ends  It waits you 
 
 Done
 
+curl -X GET "localhost:9200/_cluster/health"
+
 # Kibana  Installation
    Edit kibana_config.env
