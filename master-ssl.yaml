@@ -1,6 +1,0 @@
-xpack.security.enabled: true
-xpack.security.transport.ssl.enabled: true
-xpack.security.transport.ssl.verification.mode: certificate
-xpack.security.transport.ssl.keystore.path: /certs/elastic-stack-ca.p12
-xpack.security.transport.ssl.truststore.path: /certs/elastic-stack-ca.p12
-transport.tcp.port: 9300

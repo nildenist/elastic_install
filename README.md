@@ -19,13 +19,13 @@ Edit Master Elastic configurations in
   Edit elactic_config.env
 
 
-    describe your seeds  // consider first IP as master node. 
+    describe your seeds  // !!! consider first IP as master node. 
 
 
 3-
 chmod +x installelastic.sh
 
-./installelastic.sh clustername master|data node_name
+    ./installelastic.sh clustername master|data node_name
 
 for master cluster  (./installelastic.sh my-cluster master master-1)
 
