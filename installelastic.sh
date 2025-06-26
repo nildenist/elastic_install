@@ -158,7 +158,7 @@ echo "Creating final YAML configuration for $ROLE node..."
 if [ "$ROLE" == "master" ]; then
   FINAL_YAML=$(cat <<EOF
 node.name: $NODE_NAME
-node.roles: ["master"]
+node.roles: ["master","data"]
 http.port: 9200
 network.host: 0.0.0.0
 xpack.security.enabled: true
