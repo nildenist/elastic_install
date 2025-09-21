@@ -28,6 +28,15 @@ if [ -z "$ELASTIC_VERSION" ] || [ -z "$INSTALL_DIR" ] || [ -z "$CONFIG_DIR" ] ||
   exit 1
 fi
 
+# Get node tier from user input (for ILM setup)
+if [ "$ROLE" == "data" ]; then
+  read -p "What data tier should this node be? (hot/cold) [default: $DEFAULT_NODE_TIER]: " NODE_TIER
+  NODE_TIER=${NODE_TIER:-$DEFAULT_NODE_TIER}
+  echo "Configuring node as: $NODE_TIER tier"
+else
+  NODE_TIER="hot"  # Master nodes are typically hot tier
+fi
+
 
 if [ "$ROLE" == "master" ]; then
  # Query if Kibana is going to be installed.
@@ -158,7 +167,8 @@ echo "Creating final YAML configuration for $ROLE node..."
 if [ "$ROLE" == "master" ]; then
   FINAL_YAML=$(cat <<EOF
 node.name: $NODE_NAME
-node.roles: ["master","data"]
+node.roles: ["master","data_hot"]
+node.attr.data_tier: $NODE_TIER
 http.port: 9200
 network.host: 0.0.0.0
 xpack.security.enabled: true
@@ -184,9 +194,19 @@ EOF
   done
 
 elif [ "$ROLE" == "data" ]; then
+  # Set node roles based on tier
+  if [ "$NODE_TIER" == "hot" ]; then
+    NODE_ROLES="[\"data_hot\"]"
+  elif [ "$NODE_TIER" == "cold" ]; then
+    NODE_ROLES="[\"data_cold\"]"
+  else
+    NODE_ROLES="[\"data_content\"]"  # Default data role
+  fi
+  
   FINAL_YAML=$(cat <<EOF
 node.name: $NODE_NAME
-node.roles: ["master","data"]
+node.roles: $NODE_ROLES
+node.attr.data_tier: $NODE_TIER
 network.host: 0.0.0.0
 xpack.security.enabled: true
 xpack.security.transport.ssl.enabled: true
@@ -420,6 +440,197 @@ else
   echo "run /opt/elasticsearch/bin//elasticsearch-setup-passwords interactive"
   echo "to generate built-in passwords"
 fi
+
+# Setup Index Lifecycle Management (ILM)
+echo ""
+read -p "Would you like to configure Index Lifecycle Management (ILM) now? (Y/n): " ILM_CHOICE
+ILM_CHOICE=${ILM_CHOICE:-Y}
+
+if [[ "$ILM_CHOICE" =~ ^[yY]$ ]]; then
+  echo "Setting up Index Lifecycle Management..."
+  run_ilm_setup
+  if [[ $? -eq 0 ]]; then
+    echo "ILM setup completed successfully."
+  else
+    echo "Error occurred during ILM setup. You can run it manually later."
+    echo "Manual setup instructions:"
+    echo "1. Ensure cluster is healthy: curl localhost:9200/_cluster/health"
+    echo "2. Run the ILM functions from this script manually"
+  fi
+else
+  echo "Skipping ILM setup."
+  echo "You can configure ILM later using the functions in this script."
+  echo "ILM Configuration Summary:"
+  echo "• Hot tier: $ILM_HOT_DAYS days"
+  echo "• Cold tier: $ILM_COLD_DAYS days" 
+  echo "• Delete: $ILM_DELETE_DAYS days"
+fi
+
+# Functions for ILM setup
+setup_ilm_policy() {
+  echo "Creating ILM policy: $ILM_POLICY_NAME"
+  
+  # Create the ILM policy
+  curl -X PUT "localhost:9200/_ilm/policy/$ILM_POLICY_NAME" -H 'Content-Type: application/json' -d'
+  {
+    "policy": {
+      "phases": {
+        "hot": {
+          "min_age": "0ms",
+          "actions": {
+            "rollover": {
+              "max_primary_shard_size": "50gb",
+              "max_age": "'$ILM_HOT_DAYS'd"
+            },
+            "set_priority": {
+              "priority": 100
+            }
+          }
+        },
+        "cold": {
+          "min_age": "'$ILM_COLD_DAYS'd",
+          "actions": {
+            "set_priority": {
+              "priority": 0
+            },
+            "allocate": {
+              "number_of_replicas": 0,
+              "include": {
+                "data_tier": "cold"
+              }
+            }
+          }
+        },
+        "delete": {
+          "min_age": "'$ILM_DELETE_DAYS'd",
+          "actions": {
+            "delete": {}
+          }
+        }
+      }
+    }
+  }'
+  
+  if [ $? -eq 0 ]; then
+    echo "✓ ILM policy '$ILM_POLICY_NAME' created successfully"
+  else
+    echo "✗ Failed to create ILM policy"
+    return 1
+  fi
+}
+
+setup_index_templates() {
+  echo "Creating index templates for automatic ILM policy application"
+  
+  # Create template for logs
+  curl -X PUT "localhost:9200/_index_template/logs-template" -H 'Content-Type: application/json' -d'
+  {
+    "index_patterns": ["logs-*"],
+    "template": {
+      "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 1,
+        "index.lifecycle.name": "'$ILM_POLICY_NAME'",
+        "index.lifecycle.rollover_alias": "logs"
+      }
+    },
+    "priority": 500,
+    "version": 1,
+    "_meta": {
+      "description": "Template for log indices with ILM policy"
+    }
+  }'
+  
+  if [ $? -eq 0 ]; then
+    echo "✓ Index template for logs created successfully"
+  else
+    echo "✗ Failed to create index template for logs"
+    return 1
+  fi
+  
+  # Create initial index with alias
+  curl -X PUT "localhost:9200/logs-000001" -H 'Content-Type: application/json' -d'
+  {
+    "aliases": {
+      "logs": {
+        "is_write_index": true
+      }
+    }
+  }'
+  
+  if [ $? -eq 0 ]; then
+    echo "✓ Initial logs index created with alias"
+  else
+    echo "✗ Failed to create initial logs index"
+    return 1
+  fi
+}
+
+setup_cluster_settings() {
+  echo "Configuring cluster settings for ILM and disk management"
+  
+  # Set disk watermark settings
+  curl -X PUT "localhost:9200/_cluster/settings" -H 'Content-Type: application/json' -d'
+  {
+    "persistent": {
+      "cluster.routing.allocation.disk.watermark.low": "'$DISK_WATERMARK_LOW'",
+      "cluster.routing.allocation.disk.watermark.high": "'$DISK_WATERMARK_HIGH'",
+      "cluster.routing.allocation.disk.watermark.flood_stage": "'$DISK_WATERMARK_FLOOD'",
+      "cluster.routing.allocation.disk.include_relocations": true,
+      "indices.lifecycle.poll_interval": "1m",
+      "cluster.routing.allocation.awareness.attributes": "data_tier"
+    }
+  }'
+  
+  if [ $? -eq 0 ]; then
+    echo "✓ Cluster settings configured successfully"
+  else
+    echo "✗ Failed to configure cluster settings"
+    return 1
+  fi
+}
+
+run_ilm_setup() {
+  echo "=== Starting Index Lifecycle Management Setup ==="
+  
+  # Wait for cluster to be ready
+  echo "Waiting for cluster to be ready..."
+  local retries=0
+  local max_retries=30
+  
+  while ! curl -s "localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s" > /dev/null; do
+    sleep 2
+    ((retries++))
+    if [ $retries -ge $max_retries ]; then
+      echo "✗ Cluster not ready after $max_retries attempts"
+      return 1
+    fi
+    echo -n "."
+  done
+  echo ""
+  echo "✓ Cluster is ready"
+  
+  # Setup ILM components
+  setup_cluster_settings
+  if [ $? -ne 0 ]; then return 1; fi
+  
+  setup_ilm_policy
+  if [ $? -ne 0 ]; then return 1; fi
+  
+  setup_index_templates
+  if [ $? -ne 0 ]; then return 1; fi
+  
+  echo "=== ILM Setup Complete ==="
+  echo ""
+  echo "Your Elasticsearch cluster is now configured with:"
+  echo "• Hot data tier: Keeps data for $ILM_HOT_DAYS days"
+  echo "• Cold data tier: Archives data from day $ILM_HOT_DAYS to day $ILM_COLD_DAYS"
+  echo "• Deletion: Removes data after $ILM_DELETE_DAYS days"
+  echo "• Disk watermarks: Low=$DISK_WATERMARK_LOW, High=$DISK_WATERMARK_HIGH, Flood=$DISK_WATERMARK_FLOOD"
+  echo ""
+  echo "To use the ILM policy, index your logs to: 'logs' alias"
+  echo "Example: curl -X POST 'localhost:9200/logs/_doc' -H 'Content-Type: application/json' -d '{\"message\":\"test log\"}'"
+}
 
 echo "Script execution completed."
 
