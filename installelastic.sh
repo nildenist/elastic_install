@@ -196,9 +196,9 @@ EOF
 elif [ "$ROLE" == "data" ]; then
   # Set node roles based on tier
   if [ "$NODE_TIER" == "hot" ]; then
-    NODE_ROLES="[\"data_hot\"]"
+    NODE_ROLES="[\"data_hot\",\"data_content\"]"
   elif [ "$NODE_TIER" == "cold" ]; then
-    NODE_ROLES="[\"data_cold\"]"
+    NODE_ROLES="[\"data_cold\",\"data_content\"]"
   else
     NODE_ROLES="[\"data_content\"]"  # Default data role
   fi
